@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📦 Control de Stock - Fábrica de Aberturas</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header con Logo -->
+        <header>
+            <div class="header-content">
+                <div class="header-left">
+                    <img id="logoEmpresa" src="logo_empresa.png" alt="Logo Empresa" class="logo-empresa" onerror="this.style.display='none'">
+                    <div>
+                        <h1>📦 Control de Stock</h1>
+                        <p>Fábrica de Aberturas</p>
+                    </div>
+                </div>
+                <div class="header-info">
+                    <span id="fechaActualizacion">📅 Actualizado: Cargando...</span>
+                    <button onclick="recargarDatos()" class="btn-reload">🔄 Recargar</button>
+                    <button onclick="irAValorizacion()" class="btn-valorizar">💰 Ver Valorización</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- PESTAÑA: STOCK (Principal) -->
+        <div id="vistaStock" class="vista">
+            <!-- Panel de Estadísticas -->
+            <div class="stats-panel" id="statsPanel">
+                <div class="stat-item">
+                    <span class="stat-label">📦 Total Productos:</span>
+                    <span class="stat-value" id="totalProductos">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">⚠️ Stock Bajo:</span>
+                    <span class="stat-value" id="stockBajo">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">🔄 Sin Stock:</span>
+                    <span class="stat-value" id="sinStock">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">📍 Ubicaciones:</span>
+                    <span class="stat-value" id="totalUbicaciones">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">💰 Valor Stock:</span>
+                    <span class="stat-value" id="valorStock">U$S 0,00</span>
+                </div>
+            </div>
+
+            <!-- Panel de Filtros -->
+            <div class="filters-panel">
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="🔍 Buscar por código, producto, color o ubicación...">
+                    <button onclick="aplicarFiltros()">Buscar</button>
+                    <button onclick="limpiarFiltros()">Mostrar Todos</button>
+                </div>
+                <div class="filter-options">
+                    <select id="filterUbicacion" onchange="aplicarFiltros()">
+                        <option value="">📍 Todas las ubicaciones</option>
+                    </select>
+                    <select id="filterStock" onchange="aplicarFiltros()">
+                        <option value="todos">📊 Todos los stocks</option>
+                        <option value="bajo">⚠️ Solo stock bajo (≤5)</option>
+                        <option value="cero">❌ Solo sin stock</option>
+                        <option value="normal">✅ Stock normal</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Vista Previa Fija (Sticky) -->
+            <div class="preview-sticky" id="previewSticky">
+                <div class="preview-content" id="previewContent">
+                    <div class="preview-image" id="previewImage">
+                        <div class="no-image">📷<br>Selecciona un producto</div>
+                    </div>
+                    <div class="preview-info" id="previewInfo">
+                        <div class="preview-nombre" id="previewNombre">Selecciona un producto</div>
+                        <div class="preview-detalle" id="previewDetalle">
+                            <span>Código: -</span>
+                            <span>Color: -</span>
+                            <span>Ubicación: -</span>
+                        </div>
+                        <div class="preview-stock" id="previewStock">Stock: -</div>
+                        <div class="preview-precio" id="previewPrecio">Precio: -</div>
+                        <div class="preview-valor" id="previewValor">Valor en stock: -</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabla de Productos -->
+            <div class="table-panel">
+                <div class="table-header">
+                    <h2>📋 Inventario</h2>
+                    <span id="productosMostrados" class="contador"></span>
+                </div>
+                <div class="table-wrapper">
+                    <table id="productTable">
+                        <thead>
+                            <tr>
+                                <th onclick="ordenarTabla('codigo')">Código ⬍</th>
+                                <th onclick="ordenarTabla('producto')">Producto ⬍</th>
+                                <th onclick="ordenarTabla('color')">Color ⬍</th>
+                                <th onclick="ordenarTabla('stock')">Stock ⬍</th>
+                                <th onclick="ordenarTabla('faltante')">Faltante ⬍</th>
+                                <th onclick="ordenarTabla('ubicacion')">Ubicación ⬍</th>
+                                <th onclick="ordenarTabla('precio')">Precio ⬍</th>
+                            </tr>
+                        </thead>
+                        <tbody id="productTableBody">
+                            <!-- Los productos se cargan dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- PESTAÑA: VALORIZACIÓN -->
+        <div id="vistaValorizacion" class="vista" style="display:none;">
+            <div class="valorizacion-header">
+                <div>
+                    <h2>💰 Valorización del Stock</h2>
+                    <p>Análisis detallado del valor del inventario</p>
+                </div>
+                <button onclick="volverAStock()" class="btn-volver">⬅ Volver al Stock</button>
+            </div>
+
+            <!-- Filtros de Valorización -->
+            <div class="valorizacion-filtros">
+                <h3>🔍 Filtrar análisis</h3>
+                <div class="filtros-grid">
+                    <div class="filtro-group">
+                        <label for="vfUbicacion">📍 Ubicación</label>
+                        <select id="vfUbicacion" onchange="aplicarFiltrosValorizacion()">
+                            <option value="">Todas</option>
+                        </select>
+                    </div>
+                    <div class="filtro-group">
+                        <label for="vfColor">🎨 Color</label>
+                        <select id="vfColor" onchange="aplicarFiltrosValorizacion()">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                    <div class="filtro-group">
+                        <label for="vfMaterial">📦 Material</label>
+                        <select id="vfMaterial" onchange="aplicarFiltrosValorizacion()">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                    <div class="filtro-group">
+                        <label for="vfStock">📊 Estado de Stock</label>
+                        <select id="vfStock" onchange="aplicarFiltrosValorizacion()">
+                            <option value="todos">Todos</option>
+                            <option value="bajo">Stock Bajo (≤5)</option>
+                            <option value="cero">Sin Stock</option>
+                            <option value="normal">Stock Normal</option>
+                        </select>
+                    </div>
+                    <div class="filtro-group">
+                        <button onclick="limpiarFiltrosValorizacion()" class="btn-limpiar">🧹 Limpiar Filtros</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resumen de Valorización -->
+            <div class="valorizacion-resumen" id="valorizacionResumen">
+                <div class="resumen-item">
+                    <span class="resumen-label">💵 Valor Total del Stock</span>
+                    <span class="resumen-valor" id="resumenTotal">U$S 0,00</span>
+                </div>
+                <div class="resumen-item">
+                    <span class="resumen-label">📦 Productos con Precio</span>
+                    <span class="resumen-valor" id="resumenConPrecio">0</span>
+                </div>
+                <div class="resumen-item">
+                    <span class="resumen-label">⚠️ Productos Sin Precio</span>
+                    <span class="resumen-valor" id="resumenSinPrecio">0</span>
+                </div>
+                <div class="resumen-item">
+                    <span class="resumen-label">🏷️ Materiales Distintos</span>
+                    <span class="resumen-valor" id="resumenMateriales">0</span>
+                </div>
+            </div>
+
+            <!-- Gráficos -->
+            <div class="graficos-grid">
+                <div class="grafico-card">
+                    <h3>🏷️ Valor por Material</h3>
+                    <div class="grafico-container">
+                        <canvas id="graficoMaterial"></canvas>
+                    </div>
+                </div>
+                <div class="grafico-card">
+                    <h3>📍 Valor por Ubicación</h3>
+                    <div class="grafico-container">
+                        <canvas id="graficoUbicacion"></canvas>
+                    </div>
+                </div>
+                <div class="grafico-card">
+                    <h3>🎨 Valor por Color</h3>
+                    <div class="grafico-container">
+                        <canvas id="graficoColor"></canvas>
+                    </div>
+                </div>
+                <div class="grafico-card">
+                    <h3>📊 Distribución de Stock</h3>
+                    <div class="grafico-container">
+                        <canvas id="graficoDistribucion"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detalle de Valorización -->
+            <div class="valorizacion-detalle">
+                <div class="detalle-header">
+                    <h3>📋 Detalle de Valorización</h3>
+                    <span id="detalleContador" class="contador"></span>
+                </div>
+                <div class="table-wrapper">
+                    <table id="tablaValorizacion">
+                        <thead>
+                            <tr>
+                                <th onclick="ordenarValorizacion('material')">Material ⬍</th>
+                                <th onclick="ordenarValorizacion('color')">Color ⬍</th>
+                                <th onclick="ordenarValorizacion('ubicacion')">Ubicación ⬍</th>
+                                <th onclick="ordenarValorizacion('cantidad')">Cantidad ⬍</th>
+                                <th onclick="ordenarValorizacion('precio')">Precio Unit. ⬍</th>
+                                <th onclick="ordenarValorizacion('valorTotal')">Valor Total ⬍</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaValorizacionBody">
+                            <!-- Se llena dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer>
+            <p>© 2024 Control de Stock - Fábrica de Aberturas</p>
+        </footer>
+    </div>
+
+    <script>
+    // Función global para manejar errores de imagen
+    function mostrarSinImagen(elemento) {
+        elemento.parentElement.innerHTML = '<div class="no-image">📷<br>Sin imagen</div>';
+    }
+    </script>
+    <script src="script.js"></script>
+</body>
+</html>
